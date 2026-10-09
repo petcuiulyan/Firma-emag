@@ -10,7 +10,7 @@ COMPARE_FIELDS = ["unit_weight_kg", "pcs_per_carton", "carton_l", "carton_w", "c
 def key(s): return s.astype(str).str.strip().str.upper()
 
 
-def compare(pi, catalog, tol_price=0.01, tol_data=0.05):
+def compare(pi, catalog, tol_price=0.001, tol_data=0.05):
     """Compara liniile PI cu catalogul: NOU / PRET SCHIMBAT / DATE DIFERITE / NESCHIMBAT."""
     cat = catalog.assign(_k=key(catalog["sku"])).drop_duplicates("_k").set_index("_k")
     rows = []

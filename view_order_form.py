@@ -2,7 +2,19 @@
 import pandas as pd
 import streamlit as st
 
+import core_bnr as bnr
+
 import core_schema as schema
+
+
+def _fill_bnr(k):
+    """Callback: pune cursul BNR din data comenzii in campurile USD / EUR."""
+    r = bnr.rate_for(st.session_state[k("date")])
+    if r:
+        st.session_state[k("usd")], st.session_state[k("eur")] = round(r[0], 4), round(r[1], 4)
+        st.session_state[k("bnr_msg")] = f"Curs BNR din {r[2]:%d.%m.%Y}: USD {r[0]:.4f} · EUR {r[1]:.4f}"
+    else:
+        st.session_state[k("bnr_msg")] = "Nu am putut prelua cursul BNR (fără internet sau dată viitoare). Introdu-l manual."
 
 
 def order_form(v, s, key, id_locked=False):
@@ -19,11 +31,15 @@ def order_form(v, s, key, id_locked=False):
     out["status"] = a[4].selectbox("Status", schema.STATUSES, schema.STATUSES.index(v.get("status", "Draft")), key=k("st"))
     b = st.columns(5)
     out["goods_cur"] = b[0].selectbox("Moneda marfă", schema.CURRENCIES, schema.CURRENCIES.index(v.get("goods_cur", "USD")), key=k("gc"))
-    out["usd_ron"] = b[1].number_input("Curs USD→RON", value=float(nz(v.get("usd_ron"), s["usd_ron"])), format="%.4f", key=k("usd"))
-    out["eur_ron"] = b[2].number_input("Curs EUR→RON", value=float(nz(v.get("eur_ron"), s["eur_ron"])), format="%.4f", key=k("eur"))
+    out["usd_ron"] = b[1].number_input("Curs USD→RON", format="%.4f", key=k("usd"), **({} if k("usd") in st.session_state else {"value": float(nz(v.get("usd_ron"), s["usd_ron"]))}))
+    out["eur_ron"] = b[2].number_input("Curs EUR→RON", format="%.4f", key=k("eur"), **({} if k("eur") in st.session_state else {"value": float(nz(v.get("eur_ron"), s["eur_ron"]))}))
     out["incoterm"] = b[3].text_input("Incoterm", v.get("incoterm", "DDP"), key=k("inc"))
     out["alloc_method"] = b[4].selectbox("Alocare transport pe produs", schema.METHODS, schema.METHODS.index(v.get("alloc_method", "Automat")), key=k("am"),
                                          help="Automat = după baza tarifului: kg → greutate, CBM → volum.")
+    st.button("🏦 Preia cursul BNR din data comenzii", key=k("bnr"), on_click=_fill_bnr, args=(k,),
+              help="Folosește cursul oficial BNR din ziua selectată (sau ultima zi lucrătoare dinainte).")
+    if st.session_state.get(k("bnr_msg")):
+        st.caption(st.session_state[k("bnr_msg")])
     t = st.columns(5)
     out["transport_type"] = t[0].selectbox("Tip transport", schema.TRANSPORT_TYPES, schema.TRANSPORT_TYPES.index(v.get("transport_type", "Aerian")), key=k("tt"))
     out["transp_cur"] = t[1].selectbox("Moneda transport", schema.CURRENCIES, schema.CURRENCIES.index(v.get("transp_cur", "USD")), key=k("tc"))
