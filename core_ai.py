@@ -86,3 +86,9 @@ def parse_response(resp, weight_field="gw"):
 
 def extract(file_name, file_bytes, sheets, key, model=DEFAULT_MODEL, weight_field="gw"):
     return parse_response(call_api(build_body(file_name, file_bytes, sheets, model), key), weight_field)
+
+
+def chat(messages, system, key, model=DEFAULT_MODEL, max_tokens=2000):
+    """Conversatie: messages = [{'role': 'user'|'assistant', 'content': str}, ...]. Returneaza textul raspunsului."""
+    resp = call_api({"model": model, "max_tokens": max_tokens, "system": system, "messages": messages}, key)
+    return "".join(b.get("text", "") for b in resp.get("content", []) if b.get("type") == "text")

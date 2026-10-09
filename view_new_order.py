@@ -75,9 +75,10 @@ def render():
     if exists:
         st.error(f"ID-ul {head['id']} există deja – alege altul.")
     if b[0].button("💾 Salvează comanda", type="primary", disabled=exists or not head["id"]):
-        storage.save("orders", pd.concat([d["orders"], schema.coerce("orders", pd.DataFrame([head]))], ignore_index=True))
-        storage.save("lines", pd.concat([d["lines"], ln], ignore_index=True))
-        st.session_state.pop("no_lines"); st.success(f"Comanda {head['id']} salvată."); st.rerun()
+        with c.guard():
+            storage.save("orders", pd.concat([d["orders"], schema.coerce("orders", pd.DataFrame([head]))], ignore_index=True))
+            storage.save("lines", pd.concat([d["lines"], ln], ignore_index=True))
+        st.session_state.pop("no_lines"); st.toast(f"Comanda {head['id']} salvată.", icon="✅"); st.rerun()
     po = ln[["sku", "description", "qty", "unit_price"]].assign(total=ln["qty"] * ln["unit_price"])
     b[1].download_button("📄 Descarcă comanda pentru furnizor (xlsx)", c.to_xlsx({"PO": po}), f"PO_{head['id']}.xlsx")
     if b[2].button("🗑️ Golește"):

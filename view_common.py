@@ -1,5 +1,6 @@
 """Utilitare comune pentru pagini: incarcare date, configurare coloane, export."""
 import io
+from contextlib import contextmanager
 
 import pandas as pd
 import streamlit as st
@@ -55,3 +56,29 @@ def money(x, cur="RON"):
 
 def info_empty(msg="Nu există date încă."):
     st.info(msg)
+
+
+@contextmanager
+def guard():
+    """Prinde modificarile in luni inchise: afiseaza eroare si opreste scriptul (nu se salveaza nimic)."""
+    try:
+        yield
+    except storage.PeriodClosedError as e:
+        st.error(f"🔒 Lună închisă – {e}")
+        st.stop()
+
+
+def api_key():
+    try:
+        k = st.secrets.get("ANTHROPIC_API_KEY", "")
+    except Exception:
+        k = ""
+    return k or st.session_state.get("ai_key", "")
+
+
+def ai_model():
+    import core_ai as ai
+    try:
+        return st.secrets.get("ANTHROPIC_MODEL", "") or st.session_state.get("ai_model", ai.DEFAULT_MODEL)
+    except Exception:
+        return st.session_state.get("ai_model", ai.DEFAULT_MODEL)

@@ -28,14 +28,20 @@ def render():
     new["id"] = oid
     if st.button("💾 Salvează antetul", type="primary"):
         o = d["orders"]; o.loc[o["id"] == oid, list(new)] = list(new.values())
-        storage.save("orders", o); st.success("Antet salvat."); st.rerun()
+        with c.guard():
+            storage.save("orders", o)
+        st.toast("Antet salvat.", icon="✅"); st.rerun()
     st.subheader("Linii produs")
     mine = d["lines"][d["lines"]["order_id"] == oid]
     edited = st.data_editor(mine, num_rows="dynamic", hide_index=True, width="stretch", key=f"ln_{oid}", column_config=c.column_config("lines", hide=("order_id",)))
     b = st.columns([1, 1, 3])
     if b[0].button("💾 Salvează liniile"):
         rest = d["lines"][d["lines"]["order_id"] != oid]
-        storage.save("lines", pd.concat([rest, schema.coerce("lines", edited.assign(order_id=oid))], ignore_index=True)); st.success("Linii salvate."); st.rerun()
+        with c.guard():
+            storage.save("lines", pd.concat([rest, schema.coerce("lines", edited.assign(order_id=oid))], ignore_index=True))
+        st.toast("Linii salvate.", icon="✅"); st.rerun()
     with b[1].popover("🗑️ Șterge comanda"):
         if st.button("Confirm ștergerea", type="primary"):
-            storage.save("orders", d["orders"][d["orders"]["id"] != oid]); storage.save("lines", d["lines"][d["lines"]["order_id"] != oid]); st.rerun()
+            with c.guard():
+                storage.save("orders", d["orders"][d["orders"]["id"] != oid]); storage.save("lines", d["lines"][d["lines"]["order_id"] != oid])
+            st.rerun()

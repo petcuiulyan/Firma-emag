@@ -45,14 +45,15 @@ def render():
         st.download_button("⬇️ Descarcă backup complet (xlsx)", storage.export_backup(), "backup_import_calculator.xlsx")
         f = st.file_uploader("Restaurează din backup (xlsx)", type="xlsx", key="restore")
         if f and st.button("♻️ Restaurează (înlocuiește datele curente)"):
-            storage.restore_backup(f); st.success("Restaurat."); st.rerun()
+            storage.restore_backup(f); st.toast("Restaurat.", icon="✅"); st.rerun()
         st.divider()
         st.markdown("**Importă din calculatorul Excel** (`Calculator_Cost_Import_Mostre.xlsx`: foile *Comenzi* și *PI Furnizor*)")
         g = st.file_uploader("Fișier Excel", type="xlsx", key="legacy")
         if g and st.button("📥 Importă comenzi și linii"):
             o, l = storage.import_legacy_excel(g)
-            storage.save("orders", pd.concat([d["orders"][~d["orders"]["id"].isin(o["id"])], o], ignore_index=True))
-            storage.save("lines", pd.concat([d["lines"][~d["lines"]["order_id"].isin(o["id"])], l], ignore_index=True))
+            with c.guard():
+                storage.save("orders", pd.concat([d["orders"][~d["orders"]["id"].isin(o["id"])], o], ignore_index=True))
+                storage.save("lines", pd.concat([d["lines"][~d["lines"]["order_id"].isin(o["id"])], l], ignore_index=True))
             cat = d["catalog"].set_index("sku")
             new = l.drop_duplicates("sku").set_index("sku")[["description", "unit_weight_kg", "pcs_per_carton", "carton_l", "carton_w", "carton_h", "ro_price"]]
             new["last_price"] = l.drop_duplicates("sku", keep="last").set_index("sku")["unit_price"]

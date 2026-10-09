@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 import core_schema as schema
@@ -21,7 +22,61 @@ def load(name):
     return schema.coerce(name, df)
 
 
-def save(name, df):
+class PeriodClosedError(Exception):
+    """Incercare de modificare a datelor unei luni inchise."""
+
+
+def _month(ts): return ts.dt.strftime("%Y-%m")
+
+
+def _same(a, b, name, skip=()):
+    for col, kind, _, _ in schema.SPECS[name]:
+        if col in skip: continue
+        x, y = a[col], b[col]
+        if kind == "num":
+            if not ((pd.isna(x) and pd.isna(y)) or (not pd.isna(x) and not pd.isna(y) and np.isclose(x, y, rtol=1e-9, atol=1e-9))): return False
+        elif kind == "date":
+            if not ((pd.isna(x) and pd.isna(y)) or x == y): return False
+        elif str(x) != str(y): return False
+    return True
+
+
+def _guard(name, new):
+    """Blocheaza orice modificare (editare, stergere, adaugare) care atinge o luna inchisa."""
+    m = load("months")
+    closed = set(m.loc[m["closed"] == "Da", "month"])
+    if not closed or name not in ("orders", "lines", "months"):
+        return
+    new = schema.coerce(name, new)
+    if name == "months":
+        cur = new.drop_duplicates("month").set_index("month")
+        for _, r in m[m["month"].isin(closed)].iterrows():
+            if r["month"] not in cur.index or not _same(r, cur.loc[r["month"]], "months", skip=("month",)):
+                raise PeriodClosedError(f"Luna {r['month']} este inchisa si nu mai poate fi modificata.")
+        return
+    old = load("orders")
+    om = _month(old["date"])
+    lock = old[om.isin(closed)]
+    lock_ids = set(lock["id"])
+    if name == "orders":
+        cur = new.drop_duplicates("id").set_index("id")
+        for _, r in lock.iterrows():
+            if r["id"] not in cur.index or not _same(r, cur.loc[r["id"]], "orders", skip=("id",)):
+                raise PeriodClosedError(f"Comanda {r['id']} apartine lunii inchise {om.loc[r.name]} si nu mai poate fi modificata sau stearsa.")
+        bad = new[_month(new["date"]).isin(closed) & ~new["id"].isin(lock_ids)]
+        if len(bad):
+            raise PeriodClosedError(f"Data comenzii {bad.iloc[0]['id']} cade intr-o luna inchisa ({_month(bad['date']).iloc[0]}). Alege o data dintr-o luna deschisa.")
+    else:
+        key = ["order_id", "sku", "qty", "unit_price"]
+        a = load("lines"); a = a[a["order_id"].isin(lock_ids)].sort_values(key).reset_index(drop=True)
+        b = new[new["order_id"].isin(lock_ids)].sort_values(key).reset_index(drop=True)
+        if len(a) != len(b) or any(not _same(a.loc[i], b.loc[i], "lines") for i in range(len(a))):
+            raise PeriodClosedError("Liniile comenzilor din luni inchise nu mai pot fi modificate.")
+
+
+def save(name, df, force=False):
+    if not force:
+        _guard(name, df)
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     out = schema.coerce(name, df)
     for c, k, _, _ in schema.SPECS[name]:
@@ -55,7 +110,7 @@ def restore_backup(file):
     xl = pd.ExcelFile(file)
     for name in schema.SPECS:
         if name in xl.sheet_names:
-            save(name, xl.parse(name, dtype=str))
+            save(name, xl.parse(name, dtype=str), force=True)
     if "settings" in xl.sheet_names:
         save_settings(merged(json.loads(xl.parse("settings").iloc[0, 0])))
 

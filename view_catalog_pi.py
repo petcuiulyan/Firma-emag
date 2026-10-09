@@ -25,7 +25,7 @@ def render():
         st.caption("Catalogul e baza pentru comenzi, marjă și comparații. Editează direct în tabel; PI-urile îl completează automat.")
         edited = st.data_editor(d["catalog"], num_rows="dynamic", width="stretch", hide_index=True, key="cat_editor", column_config=c.column_config("catalog"))
         if st.button("💾 Salvează catalogul", type="primary"):
-            storage.save("catalog", edited); st.success("Catalog salvat."); st.rerun()
+            storage.save("catalog", edited); st.toast("Catalog salvat.", icon="✅"); st.rerun()
     with tab_hist:
         h = d["history"].sort_values("date", ascending=False)
         if h.empty:
@@ -159,7 +159,8 @@ def _upload(d, s):
         row = {"id": oid, "date": pd.Timestamp(date), "supplier": supplier, "pi_no": pi_no, "goods_cur": cur, "usd_ron": usd, "eur_ron": eur,
                "transp_cur": cur, "incoterm": meta.get("incoterm", "DDP"), "transport_type": meta.get("transport_type", "Aerian"),
                "duty_pct": s["default_duty"], "vat_pct": s["vat_std"], "flat_fee_eur": 0.0, "status": "Draft"}
-        storage.save("orders", pd.concat([d["orders"], pd.DataFrame([row])], ignore_index=True))
-        storage.save("lines", pd.concat([d["lines"], catalog.lines_from_pi(pi, oid)], ignore_index=True))
+        with c.guard():
+            storage.save("orders", pd.concat([d["orders"], pd.DataFrame([row])], ignore_index=True))
+            storage.save("lines", pd.concat([d["lines"], catalog.lines_from_pi(pi, oid)], ignore_index=True))
         st.success(f"Comanda **{oid}** creată cu {len(pi)} linii. " + (f"Curs BNR din {fx[2]:%d.%m.%Y}: USD {fx[0]:.4f}, EUR {fx[1]:.4f}. " if fx else
                    "Cursul BNR nu s-a putut prelua – am pus cursul implicit din Setări. ") + "Completează tariful de transport în pagina **Comenzi**.")

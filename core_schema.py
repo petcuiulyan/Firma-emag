@@ -1,5 +1,7 @@
 """Structura tabelelor (coloane, tipuri, valori implicite). O singura sursa de adevar:
 din ea se genereaza tabele goale, coercitia tipurilor si etichetele din interfata."""
+import re
+
 import numpy as np
 import pandas as pd
 
@@ -35,14 +37,25 @@ CATALOG = [
     ("commission_pct", "num", 0.15, "Comision marketplace"), ("packaging", "num", 0.0, "Ambalare/buc"),
     ("courier", "num", 0.0, "Livrare curier/buc"), ("storage", "num", 0.0, "Depozitare/buc"),
     ("returns_pct", "num", 0.0, "Rata retur"), ("ads", "num", 0.0, "Ads/buc"),
-    ("ro_price", "num", None, "Pret RO piata cu TVA"), ("notes", "text", "", "Observatii"),
+    ("ro_price", "num", None, "Pret RO piata cu TVA"), ("sold_qty", "num", 0.0, "Vandut (buc)"), ("notes", "text", "", "Observatii"),
 ]
 HISTORY = [
     ("date", "date", None, "Data"), ("sku", "text", "", "SKU"), ("supplier", "text", "", "Furnizor"),
     ("pi_no", "text", "", "Nr. PI"), ("currency", "text", "", "Moneda"), ("unit_price", "num", None, "Pret unitar"),
     ("qty", "num", None, "Cantitate"), ("source", "text", "", "Sursa"),
 ]
-SPECS = {"orders": ORDERS, "lines": LINES, "catalog": CATALOG, "history": HISTORY}
+MONTHS = [
+    ("month", "text", "", "Luna"), ("closed", "text", "Nu", "Inchisa"), ("closed_at", "date", None, "Data inchiderii"), ("orders", "text", "", "Comenzi"),
+    ("goods_ron", "num", 0.0, "Marfa"), ("transport_ron", "num", 0.0, "Transport"), ("duty_ron", "num", 0.0, "Taxe vamale"),
+    ("vat_ron", "num", 0.0, "TVA import"), ("local_ron", "num", 0.0, "Alte costuri (broker, transport intern)"), ("opex_ron", "num", 0.0, "OPEX"),
+    ("revenue_vat", "num", 0.0, "Venituri fara TVA"), ("revenue_nonvat", "num", 0.0, "Venituri cu TVA"),
+    ("sell_costs_vat", "num", 0.0, "Costuri vanzare (TVA)"), ("sell_costs_nonvat", "num", 0.0, "Costuri vanzare (non-TVA)"),
+    ("cogs_vat", "num", 0.0, "Cost marfa vanduta (TVA)"), ("cogs_nonvat", "num", 0.0, "Cost marfa vanduta (non-TVA)"),
+    ("profit_cash_vat", "num", 0.0, "Profit cash - platitor TVA"), ("profit_cash_nonvat", "num", 0.0, "Profit cash - neplatitor"),
+    ("profit_acc_vat", "num", 0.0, "Profit contabil - platitor TVA"), ("profit_acc_nonvat", "num", 0.0, "Profit contabil - neplatitor"),
+    ("opex_detail", "text", "{}", "OPEX detaliat"), ("sold_snapshot", "text", "{}", "Vandut cumulat la inchidere"),
+]
+SPECS = {"orders": ORDERS, "lines": LINES, "catalog": CATALOG, "history": HISTORY, "months": MONTHS}
 CURRENCIES = ["USD", "EUR", "RON"]
 TRANSPORT_TYPES = ["Aerian", "Maritim LCL", "Maritim FCL", "Rutier", "Curier"]
 BASES = ["kg", "CBM", "Total fix"]
@@ -55,9 +68,20 @@ def labels(name): return {c[0]: c[3] for c in SPECS[name]}
 def kind(name, col): return {c[0]: c[1] for c in SPECS[name]}[col]
 
 
+def _parse_one(x):
+    if x is None or (isinstance(x, float) and x != x):
+        return pd.NaT
+    if isinstance(x, str):
+        x = x.strip()
+        if re.match(r"^\d{4}-\d{2}-\d{2}", x):          # ISO (salvat de aplicatie): an-luna-zi, NICIODATA zi-luna
+            return pd.to_datetime(x[:10], format="%Y-%m-%d", errors="coerce")
+        return pd.to_datetime(x, dayfirst=True, errors="coerce")   # ex. 08.10.2026 = 8 octombrie
+    return pd.to_datetime(x, errors="coerce")
+
+
 def parse_date(s):
-    """Accepta ISO, dd.mm.yyyy sau obiecte data; returneaza Timestamp sau NaT."""
-    return pd.to_datetime(s, errors="coerce", dayfirst=True, format="mixed")
+    """Serie de date: ISO se citeste an-luna-zi, restul zi-luna-an. Returneaza datetime64."""
+    return pd.to_datetime(pd.Series(s).map(_parse_one))
 
 
 def empty(name):

@@ -28,9 +28,10 @@ def render():
     k[0].metric("SKU în catalog", int((d["catalog"]["sku"] != "").sum()))
     k[1].metric("Marjă medie – SRL TVA", "–" if mv != mv else f"{mv:.1%}")
     k[2].metric("Marjă medie – non-TVA", "–" if mn != mn else f"{mn:.1%}")
-    ca = sum(s["revenue_vat"])
-    k[3].metric("CA anuală proiectată", f"{ca:,.0f} RON")
-    if s["vat_threshold"] and max(ca, sum(s["revenue_nonvat"])) > 0.8 * s["vat_threshold"]:
+    cm = d["months"][d["months"]["closed"] == "Da"]
+    ca = cm["revenue_vat"].sum()
+    k[3].metric("CA din lunile închise (fără TVA)", f"{ca:,.0f} RON")
+    if s["vat_threshold"] and max(ca, cm["revenue_nonvat"].sum()) > 0.8 * s["vat_threshold"]:
         st.warning("CA proiectată se apropie de plafonul de TVA – verifică **Fiscal**.")
 
     a, b = st.columns(2)
